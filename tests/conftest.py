@@ -14,8 +14,8 @@ def read_example(contract, name):
 def host_settings(tmp_path):
     """Hosts started in tests use a free port and load the DB at once, unless a test says otherwise: the default
     port would clash between tests, and a resting DB waits for a paired request (contract 6 (client to
-    OctantCompass) 2.0)."""
-    (tmp_path / "settings.json").write_text(json.dumps({"port": 0, "idle_minutes": 0}))
+    OctantCompass) 2.0). No new-version check: tests do not ask GitHub."""
+    (tmp_path / "settings.json").write_text(json.dumps({"port": 0, "idle_minutes": 0, "release_url": None}))
 
 
 @pytest.fixture(autouse=True)

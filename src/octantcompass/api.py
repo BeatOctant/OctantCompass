@@ -2,6 +2,7 @@
 
 import asyncio
 import gc
+import threading
 import time
 from contextlib import asynccontextmanager
 from uuid import uuid4
@@ -68,8 +69,9 @@ def roles(views):
     return out
 
 
-def create_app(config, pairing, state, *, clock=utc_now, watch_db=None):
-    """config: a Config, or the LiveConfig whose settings the window may change while the host runs."""
+def create_app(config, pairing, state, *, clock=utc_now, watch_db=None, announce=None):
+    """config: a Config, or the LiveConfig whose settings the window may change while the host runs. announce: runs
+    beside the host from its start (the new-version notice, cli.announce_release) and is not waited for."""
     live = config if isinstance(config, LiveConfig) else LiveConfig(config)
     config = live.current  # the places and the first DB do not change while the host runs
     cache = SignalCache()
@@ -121,6 +123,8 @@ def create_app(config, pairing, state, *, clock=utc_now, watch_db=None):
             await task
             await watch_db()
         watcher = asyncio.create_task(watch_after_load()) if watch_db is not None else None
+        if announce is not None:
+            threading.Thread(target=announce, daemon=True).start()
         try:
             yield
         finally:

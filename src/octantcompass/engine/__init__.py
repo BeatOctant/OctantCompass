@@ -80,6 +80,8 @@ class VectorEngine(Protocol):
     def plan_update(self, index: dict, local_version: str | None) -> list: ...
     def apply_update(self, files: list, base: Path | None, out: Path, trust: dict | None = None) -> Path: ...
     def import_archive(self, path: Path, out: Path, trust: dict | None = None) -> Path: ...
+    # Open the DB as open_db does and return its db_info, without keeping it in this process.
+    def check_db(self, path: Path) -> dict: ...
 
 
 @dataclass(frozen=True)
@@ -103,8 +105,11 @@ def summary(info):
 
 
 class EngineState:
-    def __init__(self, engine: VectorEngine):
+    def __init__(self, engine: VectorEngine, *, hold=True):
+        """hold: prepare keeps the opened DB, to serve it (the host). Without it, prepare only checks that the DB
+        opens (check_db) and keeps what it says: for a program that hands DBs to the host (dbupdate.LocalDatabase)."""
         self.engine = engine
+        self.hold = hold
         self.snapshot = Snapshot()
         self.update_reason = None
         self.update_lock = Lock()
@@ -146,6 +151,8 @@ class EngineState:
         self.snapshot = Snapshot("loading", info=info, path=Path(path), resting=True)
 
     def prepare(self, path: Path):
+        if not self.hold:
+            return Snapshot("ready", info=self.engine.check_db(path), path=path)
         db = self.engine.open_db(path)
         return Snapshot("ready", db=db, info=self.engine.db_info(db), path=path)
 

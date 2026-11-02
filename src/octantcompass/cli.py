@@ -18,6 +18,8 @@ from .engine.fake import FakeVectorEngine
 from .lifecycle import serve
 from .pairing import Pairing
 from .places import Places
+from .release import newer_release, watch
+from .activity import log
 
 
 def build_parser():
@@ -52,7 +54,7 @@ def build_parser():
         "host options given here)", (host,), command="gui")
     add(commands, "serve", "run OctantCompass in the foreground without a window, until it is stopped (Ctrl+C, "
         "SIGTERM, or `systemctl --user stop octantcompass` when it starts at login)", (host,), command="serve")
-    pair = group("pair", "pair a OctantPath")
+    pair = group("pair", "pair an OctantPath")
     add(pair, "code", "print a short single-use code to enter in OctantPath", command="pair code")
     env = group("env", "the paired environments (OctantPath)")
     add(env, "list", "print the paired environments as JSON", command="env list")
@@ -148,10 +150,23 @@ def main(argv=None):
         live = LiveConfig(config, {key: getattr(args, key) for key in ("db", "host", "port")})
         return asyncio.run(serve(live, lambda: create_app(live, pairing, state,
                              watch_db=lambda: updater.watch(requests, initial_request, lambda: live.current.poll_seconds,
-                                                            selection))))
+                                                            selection),
+                             announce=lambda: announce_release(live))))
     except (OSError, ValueError, RuntimeError, DBError, EngineIncompatibleError, EngineUnavailableError) as exc:
         # The window shows this line when a start from it fails: say what stopped it.
         parser.exit(1, f"OctantCompass could not start or complete the command: {exc}\n")
+
+
+def announce_release(live):
+    """At the start and once a day while `serve` runs: when a newer OctantCompass is out, one line in the log (the
+    window's log), and on the terminal when it runs on one. Nothing when there is none or the check fails."""
+    def found(newer):
+        line = f"OctantCompass {newer['version']} is available: {newer['url']}"
+        log.info("%s", line)
+        if sys.stderr is not None and sys.stderr.isatty():
+            print(line, file=sys.stderr)
+
+    watch(lambda: newer_release(live.current.release_url), found)
 
 
 def update_db(config, args):

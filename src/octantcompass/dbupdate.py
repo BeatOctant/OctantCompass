@@ -17,7 +17,8 @@ import tempfile
 from pathlib import Path, PureWindowsPath
 from threading import Lock
 from urllib.parse import urljoin, urlsplit
-from urllib.request import Request, urlopen
+from urllib.error import HTTPError
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 from uuid import uuid4
 
 from . import __version__
@@ -75,6 +76,20 @@ def https_url(url):
     if not isinstance(url, str) or urlsplit(url).scheme.lower() != "https":
         raise NotHttps(f"not an https URL: {url!r}")
     return url
+
+
+class HttpsOnlyRedirect(HTTPRedirectHandler):
+    """Refuse each redirect that leaves https, before it is followed: no request goes over http on the way, even one
+    that would end on https again (OctantSpecs contracts/distribution.md, 取得の決まり)."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if urlsplit(newurl).scheme.lower() != "https":
+            raise HTTPError(newurl, code, "redirected away from https", headers, fp)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+# What OctantCompass fetches from outside with: the index, its parts and the release check (release.py).
+urlopen = build_opener(HttpsOnlyRedirect()).open
 
 
 def part_url(index_url, part):
@@ -375,8 +390,8 @@ class LocalDatabase:
     """The DB of a data folder as the window and the `db` commands see and change it, whether the host runs or not:
     the folder the host uses and the folder it was asked to use next, from the files; what a DB folder says, from its
     manifest (read_info: nothing is loaded); and switching, importing and updating, each checked as the host will
-    open it and handed over as a request. One at a time; each runs on a DatabaseUpdater of its own, so nothing it
-    opened stays in memory after it."""
+    open it and handed over as a request. One at a time; each runs on a DatabaseUpdater of its own that checks the
+    new DB in a child process (EngineState hold=False, check_db), so this process does not hold a DB's memory."""
 
     def __init__(self, places, engine, given=None):
         """engine: the VectorEngine the host uses. given: the DB folder given on the command line (--db)."""
@@ -452,7 +467,7 @@ class LocalDatabase:
     def _run(self, what, work):
         if not self.busy.acquire(blocking=False):
             raise UpdateRunning("another switch, import or update is running")
-        updater = DatabaseUpdater(EngineState(self.engine))
+        updater = DatabaseUpdater(EngineState(self.engine, hold=False))
         self.work = (what, updater)
         try:
             return work(updater)

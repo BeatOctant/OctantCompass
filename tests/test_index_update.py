@@ -156,7 +156,7 @@ def test_one_update_at_a_time(tmp_path):
 
 
 def window_for(data, engine, **settings):
-    """The window's side (manager.py) of a OctantCompass kept in data, with these settings."""
+    """The window's side (manager.py) of an OctantCompass kept in data, with these settings."""
     data.mkdir(parents=True, exist_ok=True)
     (data / "settings.json").write_text(json.dumps({key: str(value) for key, value in settings.items()}))
     return Manager(Places.at(data), engine=engine)
@@ -188,7 +188,10 @@ def test_the_window_checks_and_imports_from_the_index(tmp_path):
     DatabaseSelection(data).publish(data / "dbs" / "v2", DatabaseRequests(data).read()["revision"])  # the host adopts it
     assert manager.status()["db"]["pending"] is None
     assert manager.update_db() == {"updated": False, "dbVersion": "v2", "signatureWarnings": []}
-    assert refused(window_for(tmp_path / "bare", IndexEngine()).update_db) == "no_index"
+    bare = tmp_path / "bare"
+    bare.mkdir()
+    (bare / "settings.json").write_text(json.dumps({"index_url": None}))  # the default names the official index
+    assert refused(Manager(Places.at(bare), engine=IndexEngine()).update_db) == "no_index"
 
 
 def test_the_window_updates_the_db_the_running_host_uses(tmp_path):
@@ -225,6 +228,7 @@ def test_cli_db_update_hands_the_new_db_to_the_host(tmp_path, monkeypatch, capsy
     monkeypatch.setattr(cli, "OctantVectorEngine", IndexEngine)
     data = tmp_path / "data"
     DatabaseSelection(data).publish(tmp_path / "v1")
+    (data / "settings.json").write_text(json.dumps({"index_url": None}))  # the default names the official index
     assert cli.main(["db", "update", "--data-dir", str(data)]) == 1  # no index configured
     assert cli.main(["db", "update", "--check", "--index", url(index, tmp_path), "--data-dir", str(data)]) == 0
     assert json.loads(capsys.readouterr().out.splitlines()[-1])["dbVersion"] == "v2"
@@ -454,3 +458,15 @@ def test_an_import_waits_for_no_update(tmp_path):
     updater.running.acquire()
     with pytest.raises(UpdateRunning):
         updater.import_file(tmp_path / "v1.full.tar", tmp_path, None)
+
+
+def test_a_redirect_that_leaves_https_is_refused_before_it_is_followed():
+    import urllib.error
+    from urllib.request import Request
+
+    handler = dbupdate.HttpsOnlyRedirect()
+    request = Request("https://example.invalid/index.json")
+    with pytest.raises(urllib.error.HTTPError):
+        handler.redirect_request(request, None, 302, "Found", {}, "http://example.invalid/index.json")
+    followed = handler.redirect_request(request, None, 302, "Found", {}, "https://objects.example.invalid/index.json")
+    assert followed.full_url == "https://objects.example.invalid/index.json"

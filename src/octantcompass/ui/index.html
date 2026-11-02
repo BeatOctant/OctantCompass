@@ -87,6 +87,9 @@
   .top .brand { font-weight: 700; letter-spacing: .02em; margin-right: 6px; white-space: nowrap; }
   /* 何が動いているかをすぐ分かるよう、名前の横に版とコミットを出す（2026-10-13。OctantPath Desktop と同じ） */
   .top .brand .ver { font-weight: 400; letter-spacing: 0; font-size: 12px; color: var(--muted); margin-left: 6px; }
+  /* 新しい版が出ているときだけ、版と切り替えの間に出す。押すと Release のページを OS のブラウザで開く（取りも入れもしない） */
+  .top .newer { font-size: 12.5px; color: var(--accent); white-space: nowrap; text-decoration: none; }
+  .top .newer:hover { text-decoration: underline; }
   .top .header { flex: 1; min-width: 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .conn { display: flex; align-items: center; gap: 7px; font-size: 12.5px; white-space: nowrap; }
   /* 接続の印は色と形で: つながっている＝塗った丸、途中＝輪、止まっている・届かない＝菱形 */
@@ -142,6 +145,13 @@
   .set .val { word-break: break-all; }
   .set .val .next { display: block; font-size: 12px; color: var(--warn); }
   .set .btn { padding: 3px 10px; font-size: 12.5px; }
+  .switch { position: relative; width: 36px; height: 20px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface2); cursor: pointer; padding: 0; }
+  .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--muted); transition: left 0.12s; }
+  .switch[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+  .switch[aria-checked="true"]::after { left: 18px; background: #fff; }
+  .switch:disabled { opacity: 0.5; cursor: default; }
+  .set .row-help { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+  .set .row-help .err { display: block; }
   .editor { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-left: 2px solid var(--accent); background: var(--bg); border-radius: 0 6px 6px 0; }
   .editor .help { font-size: 12px; color: var(--muted); white-space: pre-line; }
   .editor textarea, .editor select { background: var(--bg); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 6px 9px; font: 12px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace; outline: none; }
@@ -203,6 +213,7 @@
 <body>
 <header class="top">
   <span class="brand">OctantCompass<span class="ver" id="brand-ver"></span></span>
+  <a class="newer" id="newer" hidden target="_blank" rel="noopener noreferrer"></a>
   <nav class="tabs" id="tabs"><button data-tab="main" class="on" data-t="tab.main"></button><button data-tab="settings" data-t="tab.settings"></button></nav>
   <div class="header" id="header-text"></div>
   <select class="lang" id="lang" data-t-title="lang.title"></select>
@@ -340,6 +351,7 @@ const pick = (v) => (v && typeof v === 'object' ? v[language] ?? v.en ?? Object.
 
 let restarting = 0;  // 再起動を頼んだ時刻（同じプロセスが待ち受けを張り直すのを待つ）
 let restartedFrom = 0;  // 再起動を頼んだときの status.restart.number
+let restartSeen = null;  // この窓が最後に見た status.restart.number（新しい再起動のときだけ設定などを読み直す）
 let notice = '';  // 上のバーに残す知らせ（再起動の失敗など）
 let startProblem = null;  // この窓からの起動が失敗した理由（止まっている間、「状態」に出す）。失敗していなければ null
 
@@ -382,8 +394,11 @@ async function refreshStatus() {
     restarting = 0;
     notice = T('top.restartLost');
   }
+  const restartNumber = status && status.restart ? status.restart.number : restartSeen;
+  const restarted = restartNumber !== restartSeen;
+  restartSeen = restartNumber;
   renderStatus();
-  if (was !== running || done) { refreshSettings(); refreshEnvs(); refreshLog(); }
+  if (was !== running || restarted) { refreshSettings(); refreshEnvs(); refreshLog(); }
   const version = status && status.status === 'ready' ? status.db?.dbVersion : null;
   if (version !== presetsFor) { presetsFor = version; refreshPresets(); }
 }
@@ -396,6 +411,9 @@ function renderStatus() {
   const s = status;
   const info = dbView?.info || {};
   if (windowInfo) $('brand-ver').textContent = [windowInfo.version, windowInfo.commit].filter(Boolean).join(' · ');
+  const newer = windowInfo?.newer;
+  $('newer').hidden = !newer;
+  if (newer) { $('newer').textContent = T('top.newer', { version: newer.version }); $('newer').href = newer.url; }
   $('start-btn').hidden = running || !!restarting;
   $('start-btn').disabled = starting;
   $('stop-btn').hidden = !running;
@@ -499,7 +517,10 @@ $('terms').addEventListener('click', (ev) => { if (ev.target === $('terms')) $('
 // 窓が settings.json を自分で読み書きするので、OctantCompass が止まっていても変えられる（起動を止めた設定をここで直す）。
 // 出す項目とまとまりと並びは橋の settings() が返す（利用者が変える値だけ。内部の待ち時間は settings.json に手で書く）
 let settingsData = null;
-let editing = null;
+let editing = null;  // 変えている項目の key
+let draft = '';  // その項目に入れかけた値。描き直しても編集欄はこの値で出る
+// オンとオフの項目はトグルで、押したときに保存する（編集欄を開かない）
+const SWITCHES = ['allow_unsigned_db', 'start_at_login'];
 
 function showValue(key, x) {
   if (key === 'allow_unsigned_db') return x ? `<span class="warn">${H('settings.on')}</span> <span class="muted">${H('settings.unsignedWarn')}</span>` : H('settings.off');
@@ -530,26 +551,27 @@ function renderSettings() {
     // 動いている間は使っている値と、違えば再起動で使う値。止まっている間は保存した値（次の起動で使う）
     const next = d.readable && d.running && !same(r.value, r.saved) ? `<span class="next">${H('settings.next', { value: '' })}${showValue(key, r.saved)}</span>` : '';
     html += `<div class="set"><div class="name">${H(`setting.${key}`)}<span class="key">${esc(key)}</span></div>
-      <div class="val">${showValue(key, d.running ? r.value : r.saved)}${next}</div>
-      <button class="btn" data-edit="${esc(key)}" ${d.readable ? '' : 'disabled'}>${H('settings.change')}</button>`;
-    if (editing === key) html += editorHtml(r);
+      <div class="val">${showValue(key, d.running ? r.value : r.saved)}${next}</div>`;
+    if (SWITCHES.includes(key)) {
+      html += `<button class="switch" role="switch" aria-checked="${r.saved ? 'true' : 'false'}" aria-label="${H(`setting.${key}`)}" data-switch="${esc(key)}" ${d.readable ? '' : 'disabled'}></button>
+        <div class="row-help">${H(`settingHelp.${key}`, { default: r.default })}<span class="err" data-err="${esc(key)}"></span></div>`;
+    } else {
+      html += `<button class="btn" data-edit="${esc(key)}" ${d.readable ? '' : 'disabled'}>${H('settings.change')}</button>`;
+      if (editing === key) html += editorHtml(r);
+    }
     html += '</div>';
   }
   $('settings').innerHTML = html;
   $('settings-note').textContent = !d.readable ? T('settings.unreadable', { path: d.path })
     : T(d.running ? 'settings.note' : 'settings.noteStopped', { path: d.path });
   $('apply-foot').hidden = !(d.readable && d.running && d.settings.some((r) => !same(r.value, r.saved)));
-  const input = $('settings').querySelector('[data-input]');
-  if (input) input.focus();
 }
 
 function editorHtml(r) {
   const key = r.key;
-  const value = r.edit;
+  const value = draft;
   let field;
-  if (key === 'allow_unsigned_db' || key === 'start_at_login') {
-    field = `<select data-input>${['false', 'true'].map((v) => `<option value="${v}" ${v === value ? 'selected' : ''}>${H(v === 'true' ? 'settings.on' : 'settings.off')}</option>`).join('')}</select>`;
-  } else if (key === 'trusted_keys') {
+  if (key === 'trusted_keys') {
     field = `<textarea data-input rows="4" spellcheck="false" placeholder="${H('settings.keysPlaceholder')}">${esc(value)}</textarea>`;
   } else {
     const list = key === 'host' ? ' list="host-choices"' : '';
@@ -561,27 +583,49 @@ function editorHtml(r) {
     <button class="btn" data-cancel>${H('settings.cancel')}</button><span class="err" data-err></span></div></div>`;
 }
 
-$('settings').addEventListener('click', async (ev) => {
-  const edit = ev.target.closest('[data-edit]');
-  if (edit) { editing = editing === edit.dataset.edit ? null : edit.dataset.edit; renderSettings(); return; }
-  if (ev.target.closest('[data-cancel]')) { editing = null; renderSettings(); return; }
-  const save = ev.target.closest('[data-save]');
-  if (!save) return;
-  const key = save.dataset.save;
-  const value = $('settings').querySelector('[data-input]').value;
-  if (key === 'host' && !['127.0.0.1', '::1', 'localhost', ''].includes(value.trim()) && !confirm(T('settings.hostConfirm'))) return;
-  if (key === 'allow_unsigned_db' && value === 'true' && !confirm(T('settings.unsignedConfirm'))) return;
+// 保存して読み直す。失敗したら理由をその項目に出す
+async function saveSetting(key, value) {
+  if (key === 'host' && !['127.0.0.1', '::1', 'localhost', ''].includes(value.trim()) && !confirm(T('settings.hostConfirm'))) return false;
+  if (key === 'allow_unsigned_db' && value === 'true' && !confirm(T('settings.unsignedConfirm'))) return false;
   let result;
   try { result = await bridge().save_setting(key, value); } catch (e) { result = { ok: false }; }
   if (!result.ok) {
     const failed = result.data && result.data.error && result.data.error.code === 'start_at_login_failed';
-    $('settings').querySelector('[data-err]').textContent = T(failed ? 'settings.loginFailed' : 'settings.invalid');
+    const err = $('settings').querySelector(SWITCHES.includes(key) ? `[data-err="${key}"]` : '[data-err]');
+    if (err) err.textContent = T(failed ? 'settings.loginFailed' : 'settings.invalid');
+    return false;
+  }
+  return true;
+}
+
+$('settings').addEventListener('click', async (ev) => {
+  const toggle = ev.target.closest('[data-switch]');
+  if (toggle) {
+    toggle.disabled = true;
+    const saved = await saveSetting(toggle.dataset.switch, toggle.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
+    toggle.disabled = false;
+    if (saved) { await refreshSettings(); refreshLog(); }
     return;
   }
+  const edit = ev.target.closest('[data-edit]');
+  if (edit) {
+    const key = edit.dataset.edit;
+    editing = editing === key ? null : key;
+    draft = editing ? settingsData.settings.find((r) => r.key === key).edit : '';
+    renderSettings();
+    $('settings').querySelector('[data-input]')?.focus();
+    return;
+  }
+  if (ev.target.closest('[data-cancel]')) { editing = null; renderSettings(); return; }
+  const save = ev.target.closest('[data-save]');
+  if (!save) return;
+  if (!await saveSetting(save.dataset.save, draft)) return;
   editing = null;
   await refreshSettings();
   refreshLog();
 });
+
+$('settings').addEventListener('input', (ev) => { if (ev.target.matches('[data-input]')) draft = ev.target.value; });
 
 function showTab(tab) {
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));

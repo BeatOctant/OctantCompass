@@ -65,6 +65,7 @@ def run(places, manager):
         hide_console()
         # Started from here, the host is its own process: it keeps running when the window closes.
         threading.Thread(target=manager.start, daemon=True).start()
+        threading.Thread(target=manager.check_release, daemon=True).start()
         webview.start(watch_requests, (bridge, places.runtime / REQUEST))
         return 0
     finally:

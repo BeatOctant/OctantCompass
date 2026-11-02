@@ -38,7 +38,7 @@
   "state.startedAt": "起動時刻",
   "state.dataDir": "データフォルダ",
   "state.hostVersion": "OctantCompass",
-  "state.apiVersion": "API（契約3）",
+  "state.apiVersion": "OctantPath との API",
   "state.none": "—",
   "reason.db_missing": "フォルダに DB がない",
   "reason.db_invalid": "DB の検証に失敗した",
@@ -62,7 +62,7 @@
   "switch.failed": "切り替えられませんでした。今の DB はそのままです。",
   "switch.notAbsolute": "絶対パスで書いてください。",
   "update.title": "索引から取り込む",
-  "update.input": "索引の https の URL（契約5）",
+  "update.input": "索引（index.json）の https の URL",
   "update.check": "確かめる",
   "update.go": "取り込む",
   "update.checking": "索引を読んでいます…",
@@ -133,8 +133,8 @@
   "settingHelp.host": "127.0.0.1: この PC だけ（既定）。\n0.0.0.0（または ::）: Quest などほかの端末からも。つなぐときは「状態」のタブの合言葉を使います。合言葉とトークンは暗号化されずに流れるので、家など信頼できるネットワークだけで使ってください（Quest は USB でつなげば 127.0.0.1 のままで使えます）。\n空にすると既定に戻ります。",
   "settingHelp.port": "待ち受けるポート（1〜65535）。空: 既定（{default}）。OctantPath は同じ PC ではこの番号を探します。0: 起動のたびに OS が選ぶ（同じ PC の OctantPath からは見つけられなくなります）。",
   "settingHelp.start_at_login": "オン: この PC にログインしたとき、窓を出さずに OctantCompass を起動します（Linux は systemd のユーザーユニットに登録し、`systemctl --user stop octantcompass` で止められます。systemd がなければ自動起動のフォルダ。Windows はスタートアップに登録）。起動しても DB は読み込まず、つないだ環境から要求が来たときに読み込みます（DB を手放すまでの時間が 0 のときは起動したときに読み込みます）。既定: オフ。",
-  "settingHelp.idle_minutes": "つないだ環境から要求がないまま、この分数がたつと DB を手放してメモリを空けます（DB は読み込むと 2GB ほど使います）。起動したときも DB を読み込まず、次の要求で読み込みます。0: 起動したときに読み込み、手放さない。空: 既定（{default}）。",
-  "settingHelp.index_url": "契約5 の索引の https の URL。空: なし。",
+  "settingHelp.idle_minutes": "つないだ環境から要求がないまま、この分数がたつと DB を手放してメモリを空けます（DB は読み込むと 1 GB ほど使います）。起動したときも DB を読み込まず、次の要求で読み込みます。0: 起動したときに読み込み、手放さない。空: 既定（{default}）。",
+  "settingHelp.index_url": "DB の索引（index.json）の https の URL。既定は OctantDB の最新の Release。空: 索引を使わない。",
   "settingHelp.allow_unsigned_db": "開発用: 取り込みのときに manifest.sig のない版でも警告を出さない。署名のない版は、この設定がなくても警告を出して使う。",
   "settingHelp.trusted_keys": "1 行に 1 つ、keyId と空白と Ed25519 の公開鍵（base64）。空: OctantVector が同梱する鍵だけ。",
   "settingHelp.pair_code_digits": "合言葉の桁数。",
@@ -172,5 +172,8 @@
   "update.cancel": "やめる",
   "update.cancelling": "やめています…",
   "update.cancelled": "やめました。今の DB はそのままです。",
-  "top.closeRefused": "DB の切り替え・取り込みが終わるまで、窓は閉じません（途中で止まってしまうため）。"
+  "top.closeRefused": "DB の切り替え・取り込みが終わるまで、窓は閉じません（途中で止まってしまうため）。",
+  "top.newer": "新しい版（{version}）が利用できます",
+  "setting.release_url": "新しい版の確認",
+  "settingHelp.release_url": "新しい版の確認に使う、最新の Release の GitHub の API（https の URL）。新しい版が出ていれば、上にリンクを出します。空: 確かめない。"
 }

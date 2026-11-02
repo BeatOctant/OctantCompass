@@ -17,7 +17,9 @@ from test_recommendations import connected
 
 @pytest.fixture
 def runtime(monkeypatch, engine_example, example, tmp_path):
-    """Contract-only module substitute; no OctantVector implementation is read."""
+    """Contract-only module substitute; no OctantVector implementation is read. It lives in this process only, so
+    apply_update and import_archive run here too (child_runtime: test_updates_run_in_a_child_process)."""
+    monkeypatch.setattr(OctantVectorEngine, "child_runtime", None)
     (tmp_path / "db").mkdir()
     package = ModuleType("octantvector")
     module = ModuleType("octantvector.runtime")
@@ -212,6 +214,16 @@ def test_incompatible_api_version_never_opens_db(runtime, monkeypatch, tmp_path,
     assert module.calls == []
 
 
+def test_a_state_that_does_not_hold_checks_the_db_and_keeps_only_its_info(runtime, tmp_path):
+    """dbupdate.LocalDatabase (the window, the `db` commands) checks a new DB as the host will open it, and keeps
+    no DB in its own process."""
+    state = EngineState(OctantVectorEngine(), hold=False)
+    prepared = state.prepare(tmp_path / "db")
+    held = EngineState(OctantVectorEngine()).prepare(tmp_path / "db")
+    assert prepared.db is None and held.db is not None
+    assert prepared.status == "ready" and prepared.info == held.info
+
+
 @pytest.mark.parametrize("version", ["1.0", "1.1", "1.10"])
 def test_compatible_api_version_is_ready(runtime, tmp_path, version):
     _, module = runtime
@@ -345,3 +357,42 @@ def test_cli_serves_octantvector_by_default_and_not_imported_for_pairing(tmp_pat
     assert isinstance(selected[-1], OctantVectorEngine)
     assert main(["serve", "--data-dir", str(tmp_path), "--fake-engine"]) == 0
     assert isinstance(selected[-1], FakeVectorEngine)
+
+
+def test_updates_run_in_a_child_process(runtime, monkeypatch, tmp_path):
+    """apply_update and import_archive run in a spawned child (child_runtime), so the memory of building the new DB
+    goes back with it; its result, its signature warnings and its errors come back as in this process."""
+    import os
+    monkeypatch.setattr(OctantVectorEngine, "child_runtime", "child_runtime_example")
+    engine = OctantVectorEngine()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        out = engine.apply_update([], None, tmp_path / "new", None)
+    assert out == tmp_path / "new" and (tmp_path / "new" / "pid").read_text() != str(os.getpid())
+    assert [str(w.message) for w in caught if w.category is SignatureWarning] == ["new: synthetic: no manifest.sig"]
+    with pytest.raises(VersionError, match="schemaVersion"):
+        engine.import_archive(tmp_path / "newer.full.tar", tmp_path / "x", None)
+    with pytest.raises(DBError, match="broken") as raised:
+        engine.import_archive(tmp_path / "broken.full.tar", tmp_path / "x", None)
+    assert not isinstance(raised.value, VersionError)
+    (tmp_path / "v9").mkdir()
+    info = engine.check_db(tmp_path / "v9")  # opened in the child: only what the DB says comes back
+    assert info["dbVersion"] == "v9" and info["pid"] != os.getpid()
+    (tmp_path / "newer").mkdir()
+    with pytest.raises(VersionError, match="schemaVersion"):
+        engine.check_db(tmp_path / "newer")
+    with pytest.raises(FileNotFoundError):
+        engine.check_db(tmp_path / "none")
+
+
+def test_a_child_of_the_executable_imports_from_its_own_files(monkeypatch):
+    """A spawned child is handed its parent's sys.path; a child of the window unpacked itself elsewhere, so it puts the
+    path it started with back before importing OctantVector."""
+    from octantcompass import frozen
+    monkeypatch.setattr(frozen, "STARTUP_PATH", ("/child/base_library.zip", "/child"))
+    monkeypatch.setattr(sys, "path", ["/parent/base_library.zip", "/parent", "/child"])
+    frozen.restore_import_path()
+    assert sys.path == ["/parent/base_library.zip", "/parent", "/child"]  # not the executable: nothing changes
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    frozen.restore_import_path()
+    assert sys.path == ["/child/base_library.zip", "/child"]

@@ -16,7 +16,7 @@ from test_lifecycle import await_connection, server  # noqa: F401 (fixture)
 
 
 def manager_for(data_dir, engine=None):
-    """The window's side of a OctantCompass kept in data_dir; a host it starts uses the synthetic DB, and so does the
+    """The window's side of an OctantCompass kept in data_dir; a host it starts uses the synthetic DB, and so does the
     DB section."""
     return Manager(Places.at(data_dir), ["--fake-engine"], engine or FakeVectorEngine())
 
@@ -74,7 +74,7 @@ def test_the_db_section_works_while_the_host_is_stopped(tmp_path):
     status = manager.status()
     assert status["running"] is False and status["window"]["dataDir"] == str(tmp_path)
     assert status["db"] == {"path": str(tmp_path / "db"), "info": summary(info), "problem": None, "pending": None,
-                            "work": None, "indexUrl": None}
+                            "work": None, "indexUrl": DEFAULTS["index_url"]}
     assert summary(info)["views"] == ["tags", "audio"] and summary(info)["credits"] == {"tags": ["BeatSaver"]}
     assert engine.calls == [("read_info", tmp_path / "db")]
 
@@ -94,6 +94,9 @@ def test_the_db_section_works_while_the_host_is_stopped(tmp_path):
     assert manager.status()["db"]["problem"] == "db_invalid"
 
     # An update needs an https index: the setting's, unless one is given.
+    settings = tmp_path / "settings.json"
+    kept = json.loads(settings.read_text()) if settings.exists() else {}
+    settings.write_text(json.dumps({**kept, "index_url": None}))  # the default names the official index
     for index, code in ((None, "no_index"), ("http://example.invalid/index.json", "index_not_https")):
         with pytest.raises(Refused) as refused:
             manager.check_update(index)

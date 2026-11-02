@@ -4,6 +4,17 @@ import os
 import sys
 
 
+# The import path this process started with. A child that multiprocessing spawns is handed its parent's sys.path; a
+# child of the window unpacks itself elsewhere (system_environment), so that path names the parent's files, not its own.
+STARTUP_PATH = tuple(sys.path)
+
+
+def restore_import_path():
+    """In a spawned child of the executable, import from its own unpacked files again (STARTUP_PATH)."""
+    if getattr(sys, "frozen", False):
+        sys.path[:] = STARTUP_PATH
+
+
 def system_environment():
     """The environment for programs this one starts. A PyInstaller executable points LD_LIBRARY_PATH at its own
     bundled libraries, and GI_TYPELIB_PATH at its typelibs (the window on Linux), which can break the programs

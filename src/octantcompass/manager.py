@@ -25,6 +25,7 @@ from .engine.octantvector import OctantVectorEngine
 from .frozen import system_environment
 from .lifecycle import running_address, running_manage_key
 from .manage import KEY_HEADER
+from .release import newer_release, watch
 
 # How long a call to the running host may take: the management API answers from memory.
 CALL_SECONDS = 5
@@ -54,6 +55,7 @@ class Manager:
         self.last_start = None  # {"ok": bool, "problem": text or None}: the last start from this window
         self.local = LocalDatabase(places, engine if engine is not None else OctantVectorEngine(), db)
         self.shown = None  # (folder, manifest's mtime, what the DB section shows of it): read again when it changes
+        self.newer = None  # {"version", "url"}: a newer OctantCompass is out (check_release)
 
     # ---- the running host ----
 
@@ -92,7 +94,20 @@ class Manager:
         host = self._host_status()
         return {"running": host is not None, "starting": self.starting.locked(), "start": self.last_start,
                 "host": host, "db": self.database(host),
-                "window": {"version": __version__, "commit": build.commit(), "dataDir": self.places.shown()}}
+                "window": {"version": __version__, "commit": build.commit(), "dataDir": self.places.shown(),
+                           "newer": self.newer}}
+
+    def check_release(self):
+        """Look for a newer OctantCompass (release.py) when the window opens and once a day while it stays open; the
+        window links to it. Runs until the window's process ends."""
+        def check():
+            try:
+                config = Config.load(self.places)
+            except (OSError, ValueError, TypeError):
+                return None
+            return newer_release(config.release_url)
+
+        watch(check, lambda found: setattr(self, "newer", found))
 
     def _host_status(self):
         """The running host's status (/manage/status), or None."""

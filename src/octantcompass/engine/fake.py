@@ -33,6 +33,9 @@ class FakeVectorEngine:
     def db_info(self, db):
         return deepcopy(self.info)
 
+    def check_db(self, path):
+        return self.db_info(self.open_db(path))
+
     def read_info(self, path):
         self.calls.append(("read_info", Path(path)))
         if self.error:

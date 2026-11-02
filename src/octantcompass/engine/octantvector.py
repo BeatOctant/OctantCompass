@@ -1,8 +1,15 @@
-"""Contract-1 adapter. Only this module may import OctantVector."""
+"""Contract-1 adapter. Only this module may import OctantVector.
 
+apply_update, import_archive and check_db run in a child process: building or opening a DB folder holds a whole DB's
+tables and vectors for a while, and a host or window that did it itself would keep much of that memory after it is
+done. The child's memory goes back to the OS when it ends."""
+
+import multiprocessing
 import warnings
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
+from ..frozen import restore_import_path
 from . import (DBError, EngineIncompatibleError, EngineUnavailableError, RequestError, SeedNotEmbeddedError,
                SeedNotInDBError, SignatureWarning, UnknownPresetError, VersionError, recorded)
 
@@ -23,7 +30,36 @@ def is_supported(api_version):
     return major == SUPPORTED_API[0] and minor >= SUPPORTED_API[1]
 
 
+def _check_db(runtime, path):
+    """Open the DB as the host will, and keep only what it says (its info)."""
+    return runtime.open_db(path).info()
+
+
+def _in_child(module, name, args):
+    """Run in the child process: OctantVector's `name`(*args) -> ("ok", result, signature warnings) or
+    ("VersionError" | "DBError", message, signature warnings). Other errors reach the parent as they are."""
+    import importlib
+    restore_import_path()
+    runtime = importlib.import_module(module)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", runtime.SignatureWarning)
+        try:
+            function = (lambda *a: _check_db(runtime, *a)) if name == "check_db" else getattr(runtime, name)
+            outcome = ("ok", function(*args))
+        except runtime.VersionError as exc:
+            outcome = ("VersionError", str(exc))
+        except runtime.DBError as exc:
+            outcome = ("DBError", str(exc))
+    for warning in caught:
+        if not issubclass(warning.category, runtime.SignatureWarning):
+            warnings.showwarning(warning.message, warning.category, warning.filename, warning.lineno)
+    return (*outcome, [str(w.message) for w in caught if issubclass(w.category, runtime.SignatureWarning)])
+
+
 class OctantVectorEngine:
+    # The module the child process imports for apply_update and import_archive; None runs them in this process.
+    child_runtime = "octantvector.runtime"
+
     def __init__(self):
         self._runtime = None
 
@@ -92,16 +128,32 @@ class OctantVectorEngine:
         return self._call(runtime.plan_update, index, local_version)
 
     def apply_update(self, files, base, out, trust=None):
-        return self._signed(self._load_runtime().apply_update, files, base, out, trust)
+        return self._signed("apply_update", files, base, out, trust)
 
     def import_archive(self, path, out, trust=None):
-        return self._signed(self._load_runtime().import_archive, path, out, trust)
+        return self._signed("import_archive", path, out, trust)
 
-    def _signed(self, function, *args):
+    def check_db(self, path):
+        runtime = self._load_runtime()
+        if not Path(path).exists():
+            raise FileNotFoundError(path)
+        if self.child_runtime is None:
+            return self._call(_check_db, runtime, path)
+        return self._signed("check_db", path)
+
+    def _signed(self, name, *args):
         runtime = self._load_runtime()
         # OctantVector's SignatureWarning goes on as OctantCompass's own, as the errors do.
-        with recorded(runtime.SignatureWarning) as signatures:
-            result = self._call(function, *args)
+        if self.child_runtime is None:
+            with recorded(runtime.SignatureWarning) as signatures:
+                result = self._call(getattr(runtime, name), *args)
+        else:
+            with ProcessPoolExecutor(1, mp_context=multiprocessing.get_context("spawn")) as child:
+                kind, result, signatures = child.submit(_in_child, self.child_runtime, name, args).result()
+            if kind == "VersionError":
+                raise VersionError(result)
+            if kind == "DBError":
+                raise DBError(result)
         for text in signatures:
             warnings.warn(SignatureWarning(text), stacklevel=3)
         return result

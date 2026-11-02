@@ -24,7 +24,7 @@ DEFAULTS = json.loads(Path(__file__).with_name("defaults.json").read_text(encodi
 # DB folder is chosen with the DB switch.
 SETTING_GROUPS = (("listen", ("host", "port")), ("import", ("index_url", "allow_unsigned_db", "trusted_keys")),
                ("pairing", ("pair_code_digits", "pair_code_seconds", "pair_code_attempts")),
-               ("running", ("start_at_login", "idle_minutes", "log_lines")))
+               ("running", ("start_at_login", "idle_minutes", "log_lines", "release_url")))
 EDITABLE = tuple(key for _, keys in SETTING_GROUPS for key in keys)
 # Settings that need the listener made again (a restart from the window); the others apply as soon as they are saved.
 RESTART_KEYS = ("host", "port")
@@ -55,6 +55,7 @@ class _Checks(BaseModel):
     index_max_megabytes: Positive
     idle_minutes: Annotated[float, Field(ge=0, allow_inf_nan=False)]
     index_url: NonEmpty | None
+    release_url: NonEmpty | None
     trusted_keys: dict[NonEmpty, NonEmpty]  # keyId -> public key
     allow_unsigned_db: bool
     start_at_login: bool
@@ -65,7 +66,7 @@ class Config:
     places: Places  # a folder (--data-dir) is made into one
     db: Path | None = DEFAULTS["db"]  # none: db/ in the data folder
     host: str = DEFAULTS["host"]
-    # Contract 6 (client to OctantCompass) 2.0: OctantPath finds a OctantCompass on the same PC at 127.0.0.1 on the
+    # Contract 6 (client to OctantCompass) 2.0: OctantPath finds an OctantCompass on the same PC at 127.0.0.1 on the
     # default port. 0 still asks the OS for a free port.
     port: int = DEFAULTS["port"]
     pair_code_digits: int = DEFAULTS["pair_code_digits"]
@@ -75,12 +76,13 @@ class Config:
     poll_seconds: float = DEFAULTS["poll_seconds"]
     startup_timeout: float = DEFAULTS["startup_timeout"]
     shutdown_timeout: float = DEFAULTS["shutdown_timeout"]
-    # Contract 5 (OctantHarvest to OctantCompass) index: URL or local path; none = local folders only
+    # Contract 5 (OctantHarvest to OctantCompass) index: an https URL only (dbupdate.https_url); none = no index, only
+    # DBs imported from a file or switched to as a local folder
     index_url: str | None = DEFAULTS["index_url"]
     # The largest index read; the parts it lists are read up to the sizes it gives
     index_max_megabytes: float = DEFAULTS["index_max_megabytes"]
     log_lines: int = DEFAULTS["log_lines"]  # recent events kept in memory for the window
-    # The DB (about 2 GB once loaded) is let go after this many minutes without a request from a paired environment
+    # The DB (about 1 GB once loaded) is let go after this many minutes without a request from a paired environment
     # and loaded again on the next one; the host starts without it. 0 loads it at the start and keeps it.
     idle_minutes: float = DEFAULTS["idle_minutes"]
     # {keyId: Ed25519 public key base64} trusted besides OctantVector's bundled keys
@@ -90,6 +92,9 @@ class Config:
     # Start OctantCompass (`serve`, no window) when the user logs in. Off by default (OctantSpecs octantcompass/law.md 3.1);
     # the window writes or removes the OS entry when it saves this (shortcut.set_start_at_login).
     start_at_login: bool = DEFAULTS["start_at_login"]
+    # GitHub's API for the latest OctantCompass release: the window links to its page when it is newer than this one
+    # (release.py). None: no check.
+    release_url: str | None = DEFAULTS["release_url"]
 
     @property
     def index_max_bytes(self):

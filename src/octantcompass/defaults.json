@@ -9,11 +9,12 @@
   "poll_seconds": 0.1,
   "startup_timeout": 10,
   "shutdown_timeout": 5,
-  "index_url": null,
+  "index_url": "https://github.com/BeatOctant/OctantDB/releases/latest/download/index.json",
   "index_max_megabytes": 16,
   "log_lines": 500,
   "idle_minutes": 30,
   "trusted_keys": {},
   "allow_unsigned_db": false,
-  "start_at_login": false
+  "start_at_login": false,
+  "release_url": "https://api.github.com/repos/BeatOctant/OctantCompass/releases/latest"
 }

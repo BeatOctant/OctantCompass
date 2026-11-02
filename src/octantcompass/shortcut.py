@@ -22,7 +22,7 @@ def command(places, verb="gui"):
 
 
 def detached():
-    """Popen arguments for a OctantCompass started from another one (the window starting `serve`, the host opening the
+    """Popen arguments for an OctantCompass started from another one (the window starting `serve`, the host opening the
     window): it outlives the one that started it, and on Windows no console window comes up with it."""
     if sys.platform == "win32":
         return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW}
