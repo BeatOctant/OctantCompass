@@ -153,6 +153,14 @@ def test_db_failures(tmp_path, exc, reason):
         assert result["db"] is None
 
 
+def test_an_invalid_db_leaves_its_cause_in_the_log(tmp_path, caplog):
+    state = EngineState(FakeVectorEngine(error=DBError("charts.parquet: no column jd (a DB built before OctantVector 0.14.0)")))
+    with caplog.at_level("WARNING", logger="octantcompass"):
+        with TestClient(create_app(Config(tmp_path, idle_minutes=0), Pairing(tmp_path / "pairing.json"), state)) as client:
+            assert wait_ready(client)["reason"] == "db_invalid"
+    assert "before OctantVector 0.14.0" in caplog.text
+
+
 def test_loading_does_not_block_http(tmp_path):
     release = threading.Event()
     started = threading.Event()

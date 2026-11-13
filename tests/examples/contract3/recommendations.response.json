@@ -9,6 +9,7 @@
   "candidates": [
     {
       "rank": 1,
+      "nps": 4.83,
       "hash": "2222222222222222222222222222222222222222",
       "characteristic": "Standard",
       "difficulty": "Hard",
@@ -25,6 +26,7 @@
     },
     {
       "rank": 2,
+      "nps": null,
       "hash": "6666666666666666666666666666666666666666",
       "characteristic": "OneSaber",
       "difficulty": "Expert",

@@ -239,3 +239,15 @@ def test_unit_quote_keeps_systemd_from_expanding_anything():
     assert shortcut.unit_quote("/opt/beat compass/bin") == '"/opt/beat compass/bin"'
     assert shortcut.unit_quote("50%$HOME") == "50%%$$HOME"
     assert shortcut.unit_quote('a"b\\c') == '"a\\"b\\\\c"'
+
+
+def test_the_windows_login_entry_opens_the_window_minimized(tmp_path, login_entries, monkeypatch):
+    # The host alone has no window, and the executable's console showed it black, as if stuck (a Windows user,
+    # 2026-11-04): at login the window opens minimized and starts the host.
+    written = {}
+    monkeypatch.setattr(shortcut.sys, "platform", "win32")
+    monkeypatch.setattr(shortcut, "windows_shortcut",
+                        lambda parts, path, description: written.update(parts=parts, path=path) or path)
+    path = shortcut.set_start_at_login(tmp_path, True)
+    assert path == login_entries / "appdata/Microsoft/Windows/Start Menu/Programs/Startup/OctantCompass.lnk"
+    assert written["parts"][-4:] == ["gui", "--data-dir", str(tmp_path.resolve()), "--minimized"]

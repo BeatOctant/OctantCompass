@@ -40,7 +40,7 @@ class LocalEngine(FakeVectorEngine):
 
 
 @pytest.mark.parametrize("folder", ["invalid", "unsupported", "missing"])
-def test_failed_switch_keeps_previous_snapshot_and_selection(tmp_path, folder):
+def test_failed_switch_keeps_previous_snapshot_and_selection(tmp_path, folder, caplog):
     state = EngineState(LocalEngine())
     state.load(tmp_path / "old")
     old = state.snapshot
@@ -52,6 +52,7 @@ def test_failed_switch_keeps_previous_snapshot_and_selection(tmp_path, folder):
     assert state.snapshot is old
     assert selection.read() == saved
     assert state.update_reason == "db_update_failed"
+    assert folder != "invalid" or "private DB details" in caplog.text  # the log says why it was refused
     DatabaseUpdater(state).select_local(tmp_path / "new", selection)
     assert state.snapshot.info["dbVersion"] == "new"
     assert state.update_reason is None

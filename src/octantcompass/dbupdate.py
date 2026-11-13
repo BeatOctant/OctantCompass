@@ -222,9 +222,9 @@ class DatabaseUpdater:
                 prepared = self.state.prepare(Path(path))
                 if selection is not None:
                     selection.publish(path, revision)
-            except Exception:
+            except Exception as exc:
                 self.state.update_reason = "db_update_failed"
-                log.warning("DB switch failed: %s", path)
+                log.warning("DB switch failed: %s (%s)", path, exc)
                 raise
             self.state.snapshot = prepared
             self.state.update_reason = None

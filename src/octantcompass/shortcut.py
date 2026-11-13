@@ -82,15 +82,16 @@ def systemctl(*args):
 
 
 def set_start_at_login(places, on):
-    """Write (on) or remove (off) the login entry. At login OctantCompass starts with `serve`: no window, and with
-    idle_minutes set it holds no DB until a paired environment asks (contract 6 (client to OctantCompass) 2.0).
-    -> the entry's path. Raises RuntimeError when it cannot be written."""
+    """Write (on) or remove (off) the login entry. On Linux OctantCompass starts at login with `serve`: no window. On
+    Windows it opens the window minimized (`gui --minimized`), so the taskbar shows it is running; closing the window
+    leaves the host running. Either way, with idle_minutes set it holds no DB until a paired environment asks
+    (contract 6 (client to OctantCompass) 2.0). -> the entry's path. Raises RuntimeError when it cannot be written."""
     path = login_entry_path()
     if sys.platform == "win32":
         if not on:
             path.unlink(missing_ok=True)
             return path
-        return windows_shortcut(command(places, "serve"), path, "Start OctantCompass at login")
+        return windows_shortcut(command(places, "gui") + ["--minimized"], path, "Start OctantCompass at login")
     if not on:
         if path.exists():
             try:

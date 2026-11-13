@@ -257,7 +257,7 @@ def test_signature_warnings_reach_the_window_and_the_cli(tmp_path, monkeypatch, 
 
 def test_no_command_opens_the_window(tmp_path, monkeypatch):
     seen = []
-    monkeypatch.setattr(cli, "run_window", lambda places, manager: seen.append(places.data) or 0)
+    monkeypatch.setattr(cli, "run_window", lambda places, manager, minimized: seen.append(places.data) or 0)
     monkeypatch.setattr(sys, "argv", ["octantcompass"])
     monkeypatch.setattr(sys, "stdin", None)
     monkeypatch.setattr(cli.Places, "default", classmethod(lambda cls: cls.at(tmp_path)))

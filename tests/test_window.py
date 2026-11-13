@@ -212,3 +212,23 @@ def test_the_window_stays_open_while_a_db_change_runs(tmp_path):
     assert bridge._closing() is True
     release.set()
     work.join(5)
+
+
+def test_a_window_opened_minimized_is_not_maximized_by_where_it_closed(tmp_path, monkeypatch):
+    # The Windows login entry opens the window minimized; one last closed maximized would pop up over the desktop.
+    places = Places.at(tmp_path)
+    bounds = {"x": 10, "y": 20, "width": 1400, "height": 900, "maximized": True}
+    first = bridge_for(tmp_path)
+    first._attach(Window(), SimpleNamespace(bounds=lambda: bounds))
+    assert first._closing() is True
+    kept = []
+    fake = SimpleNamespace(create_window=lambda *a, **k: Window(), start=lambda *a, **k: None)
+    monkeypatch.setattr(window, "load_webview", lambda: fake)
+    monkeypatch.setattr(window.placement, "keep", lambda shown, saved: kept.append(saved))
+    monkeypatch.setattr(window.minsize, "keep", lambda shown: None)
+    monkeypatch.setattr(Manager, "start", lambda self: None)
+    monkeypatch.setattr(Manager, "check_release", lambda self: None)
+    manager = Manager(places, engine=FakeVectorEngine())
+    assert window.run(places, manager, minimized=True) == 0
+    assert window.run(places, manager) == 0
+    assert kept == [{**bounds, "maximized": False}, bounds]

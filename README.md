@@ -18,7 +18,7 @@ Beat Saber の MOD [OctantPath](https://github.com/BeatOctant/OctantPath)（と 
 [Releases](https://github.com/BeatOctant/OctantCompass/releases) の単体実行ファイル（Linux・Windows）を使います。Python と OctantVector は入っているので要りません。DB は窓の「詳細設定」の「索引から取り込む」で取ります（既定の索引は [OctantDB](https://github.com/BeatOctant/OctantDB/releases) の最新の Release）。同じ Release の tar を「ファイルから取り込む」で入れることもできます。BeatOctant の部品は、どれも最新の版どうしで使ってください。古い版の組み合わせはサポートしていません。
 
 - Linux: OS の WebKitGTK 4.1 と GTK 3 が要ります（Debian・Ubuntu は `libwebkit2gtk-4.1-0`、Fedora は `webkit2gtk4.1`、Arch は `webkit2gtk-4.1`）。Ubuntu 24.04 で試しました。ほかのディストリビューションは試していません
-- Windows: Windows 10 と 11 に入っている WebView2 を使います。「ログイン時に起動する」とショートカットは、Windows ではまだ試していません
+- Windows: Windows 10 と 11 に入っている WebView2 を使います。「ログイン時に起動する」は、Windows の利用者に試してもらいました（2026-11）。ショートカットは、Windows ではまだ試していません
 
 ## 使い方
 
@@ -31,7 +31,7 @@ OctantPath とのペアリングは、窓に出る合言葉を OctantPath に 1 
 
 DB は使う間だけ読み込みます（読み込むと 1 GB ほど）。要求が `idle_minutes`（既定 30 分）なければ手放し、次の要求でまた読み込みます。その間は「loading」と出ます。
 
-「ログイン時に起動する」を入れると、ログインしたときに窓を出さずに起動します。Linux では systemd のユーザーユニットに書くので、`systemctl --user status octantcompass` で状態を、`systemctl --user stop octantcompass` で止められます。
+「ログイン時に起動する」を入れると、Linux ではログインしたときに窓を出さずに起動します。Windows では窓を最小化で開き、タスクバーで動いているのが分かるようにします（窓を閉じても裏で動き続けます）。Linux では systemd のユーザーユニットに書くので、`systemctl --user status octantcompass` で状態を、`systemctl --user stop octantcompass` で止められます。
 
 ### コマンド
 

@@ -12,6 +12,7 @@
       "characteristic": "Standard",
       "difficulty": "Hard",
       "rank": 1,
+      "nps": 4.83,
       "reason": {
         "views": { "clap_htsat_unfused@1": 0.41, "chart_patterns@2": 0.37 },
         "difficulty": {
@@ -28,6 +29,7 @@
       "characteristic": "OneSaber",
       "difficulty": "Expert",
       "rank": 2,
+      "nps": null,
       "reason": {
         "views": { "clap_htsat_unfused@1": 0.39 },
         "difficulty": null

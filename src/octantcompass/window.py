@@ -46,21 +46,26 @@ class WindowUnavailable(Exception):
     """No window can be shown here: pywebview is not installed (the gui extra), or the system has no web view."""
 
 
-def run(places, manager):
+def run(places, manager, minimized=False):
     """Open the window, or bring the open one to the front; start the host first when it is not running (manager: a
-    Manager of places, with the host options given to `gui`). Returns the exit code."""
+    Manager of places, with the host options given to `gui`). minimized: open it minimized and leave an open window
+    as it is (the Windows login entry, so the taskbar shows OctantCompass is running). Returns the exit code."""
     lock = InstanceLock(places.runtime, "window.lock")
     if not lock.acquire():
         lock.close()
-        write_private(places.runtime / REQUEST, "")
+        if not minimized:
+            write_private(places.runtime / REQUEST, "")
         return 0
     try:
         webview = load_webview()
         bridge = Bridge(manager, places)
         theme = bridge.theme()
         shown = webview.create_window(TITLE, html=page(theme), js_api=bridge, width=SIZE[0], height=SIZE[1],
-                                      background_color=BACKGROUND[theme])
-        bridge._attach(shown, placement.keep(shown, bridge._bounds()))
+                                      background_color=BACKGROUND[theme], minimized=minimized)
+        saved = bridge._bounds()
+        if minimized and saved:  # a window last closed maximized would open maximized over the minimized one
+            saved = {**saved, "maximized": False}
+        bridge._attach(shown, placement.keep(shown, saved))
         minsize.keep(shown)
         hide_console()
         # Started from here, the host is its own process: it keeps running when the window closes.

@@ -4,7 +4,7 @@
   "status": "ready",
   "db": {
     "dbVersion": "2026.10.04",
-    "schemaVersion": "1.1",
+    "schemaVersion": "2.0",
     "views": ["clap_htsat_unfused@1", "meta_tags@2", "chart_patterns@2"],
     "roles": { "music": ["clap_htsat_unfused@1"], "meta": ["meta_tags@2"], "chart": ["chart_patterns@2"] },
     "genres": ["jpop", "rock"]

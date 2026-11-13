@@ -168,7 +168,9 @@ class EngineState:
             self.snapshot = Snapshot("degraded", "schema_unsupported", path=path)
         except FileNotFoundError:
             self.snapshot = Snapshot("degraded", "db_missing", path=path)
-        except DBError:
+        except DBError as exc:
+            # The reason says only that validation failed; the log for the window says why (an old DB, a bad file).
+            log.warning("The DB failed validation: %s", exc)
             self.snapshot = Snapshot("degraded", "db_invalid", path=path)
         except Exception as exc:
             # Anything else (out of memory, an error the engine did not map) must not leave the host "loading"

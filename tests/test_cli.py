@@ -69,22 +69,25 @@ def test_gui_opens_the_window_before_reading_the_settings(tmp_path, monkeypatch)
     # A settings file that keeps OctantCompass from starting is fixed in the window, so the window opens all the same.
     (tmp_path / "settings.json").write_text('{"port": "not a port"}')
     seen = []
-    monkeypatch.setattr(cli, "run_window", lambda places, manager: seen.append(
-        (places.data, manager.serve_arguments, type(manager.local.engine).__name__, manager.local.given)) or 0)
+    monkeypatch.setattr(cli, "run_window", lambda places, manager, minimized: seen.append(
+        (places.data, manager.serve_arguments, type(manager.local.engine).__name__, manager.local.given, minimized)) or 0)
     assert cli.main(["gui", "--data-dir", str(tmp_path)]) == 0
     # The host options for the start from the window; the window's DB section uses the same engine and DB folder.
     assert cli.main(["gui", "--fake-engine", "--port", "0", "--db", str(tmp_path / "other"),
                      "--data-dir", str(tmp_path)]) == 0
-    assert seen == [(tmp_path, [], "OctantVectorEngine", None),
+    # The Windows login entry opens it minimized; that is the window's, not passed on to the host.
+    assert cli.main(["gui", "--minimized", "--data-dir", str(tmp_path)]) == 0
+    assert seen == [(tmp_path, [], "OctantVectorEngine", None, False),
                     (tmp_path, ["--db", str(tmp_path / "other"), "--port", "0", "--fake-engine"], "FakeVectorEngine",
-                     str(tmp_path / "other"))]
+                     str(tmp_path / "other"), False),
+                    (tmp_path, [], "OctantVectorEngine", None, True)]
     # The language is chosen in the window (OctantPath Desktop no longer opens it).
     with pytest.raises(SystemExit):
         cli.main(["gui", "--lang", "ja", "--data-dir", str(tmp_path)])
 
 
 def test_gui_says_when_no_window_can_be_shown(tmp_path, monkeypatch, capsys):
-    def unavailable(places, manager):
+    def unavailable(places, manager, minimized):
         raise cli.WindowUnavailable("synthetic")
     monkeypatch.setattr(cli, "run_window", unavailable)
     with pytest.raises(SystemExit) as exit:

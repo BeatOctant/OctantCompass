@@ -311,6 +311,8 @@ def test_adapter_http_roundtrip_preserves_history_params_and_candidates(runtime,
         response = client.post("/v1/recommendations", json={"count": 1, "difficulty": "auto", "params": params}, headers=headers)
         assert response.status_code == 200
         assert response.json()["candidates"] == module.recommendation["items"]
+        # the measured NPS reaches the client as OctantVector gave it, null included (OctantPath and Android show it)
+        assert [c["nps"] for c in response.json()["candidates"]] == [None, 4.83]
         assert module.calls[-1] == ("recommend", module.handle, events, {"count": 1, "difficulty": "warmup"}, params)
 
 

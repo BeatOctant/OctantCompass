@@ -12,7 +12,7 @@ from .engine import DBError, EngineIncompatibleError, EngineState, EngineUnavail
 from .dbupdate import DatabaseRequests, DatabaseSelection, DatabaseUpdater, LocalDatabase, db_in_use
 from .manager import Manager
 from .shortcut import make_shortcut, set_start_at_login
-from .window import WindowUnavailable, run as run_window
+from .window import WindowUnavailable, hide_console, run as run_window
 from .engine.octantvector import OctantVectorEngine
 from .engine.fake import FakeVectorEngine
 from .lifecycle import serve
@@ -50,8 +50,10 @@ def build_parser():
         # No --data-dir here: a subcommand's default would overwrite a value given before it.
         return add(commands, name, help, ()).add_subparsers(title="commands", metavar="<command>", required=True)
 
-    add(commands, "gui", "open the OctantCompass window; start OctantCompass first when it is not running (with the "
-        "host options given here)", (host,), command="gui")
+    gui = add(commands, "gui", "open the OctantCompass window; start OctantCompass first when it is not running (with "
+              "the host options given here)", (host,), command="gui")
+    gui.add_argument("--minimized", action="store_true",
+                     help="open the window minimized, and leave an open window where it is (the Windows login entry)")
     add(commands, "serve", "run OctantCompass in the foreground without a window, until it is stopped (Ctrl+C, "
         "SIGTERM, or `systemctl --user stop octantcompass` when it starts at login)", (host,), command="serve")
     pair = group("pair", "pair an OctantPath")
@@ -97,7 +99,7 @@ def main(argv=None):
         # Before the settings are read: the window is where a setting that keeps OctantCompass from starting is fixed.
         engine = FakeVectorEngine() if args.fake_engine else OctantVectorEngine()
         try:
-            return run_window(places, Manager(places, serve_arguments(args), engine, args.db))
+            return run_window(places, Manager(places, serve_arguments(args), engine, args.db), args.minimized)
         except (OSError, WindowUnavailable) as exc:
             parser.exit(1, f"the OctantCompass window could not be opened: {exc}\n")
     try:
@@ -118,6 +120,8 @@ def main(argv=None):
             print(make_shortcut(places))
             return 0
         serving = args.command == "serve"
+        if serving:
+            hide_console()  # a `serve` from an older Windows login entry: no black console that looks stuck
         selected = selection.read() if serving else None
         if serving and args.db is None:
             config = replace(config, db=db_in_use(config, selection))
